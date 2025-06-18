@@ -24,7 +24,7 @@ Install dependencies with [uv](https://github.com/astral-sh/uv) and start the ba
 
 ```bash
 uv pip install -r backend/requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 ```
 
 In a separate terminal start the frontend:
