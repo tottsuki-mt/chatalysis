@@ -4,26 +4,33 @@ import pandas as pd
 from typing import Dict
 from .agent import create_agent
 from xinference import Client
+from dotenv import load_dotenv
 import tempfile
+import os
 
+
+load_dotenv()
 app = FastAPI()
 
 sessions: Dict[str, pd.DataFrame] = {}
 agents: Dict[str, any] = {}
 
-xinference_client = Client("http://localhost:9997")  # adjust if needed
+xinference_url = os.getenv("XINFERENCE_URL", "http://localhost:9997")
+xinference_client = Client(xinference_url)
+model_name = os.getenv("XINFERENCE_MODEL_NAME", "whisper")
+model_size = os.getenv("XINFERENCE_MODEL_SIZE", "small")
 model_uid = None
 
 @app.on_event("startup")
 async def startup_event():
     global model_uid
     try:
-        model_uid = xinference_client.launch_model(model_name="whisper", model_size="small")
+        model_uid = xinference_client.launch_model(model_name=model_name, model_size=model_size)
     except Exception:
         # assume already launched
         models = xinference_client.list_models()
         for uid, info in models.items():
-            if info.get("model_name") == "whisper":
+            if info.get("model_name") == model_name:
                 model_uid = uid
                 break
 
