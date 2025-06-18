@@ -78,10 +78,30 @@ def run_code_once(code: str, show: bool = True) -> tuple[list[bytes], list[str]]
 
     orig_show = pio.show
     pio.show = _pio_show
+
+    # ------- wrap plotly.express functions to capture returned figures -------
+    px_funcs = {}
+
+    def _wrap_px(func):
+        def wrapper(*args, **kwargs):
+            fig = func(*args, **kwargs)
+            if isinstance(fig, go.Figure):
+                plotly_figs.append(fig)
+            return fig
+        return wrapper
+
+    for name in dir(px):
+        attr = getattr(px, name)
+        if callable(attr) and not name.startswith("_"):
+            px_funcs[name] = attr
+            setattr(px, name, _wrap_px(attr))
+
     try:
         exec(code, {}, local_ctx)  # LLMは plt.show()/fig.show() を呼ばない前提
     finally:
         pio.show = orig_show
+        for name, func in px_funcs.items():
+            setattr(px, name, func)
 
     # local variables から Plotly Figure を収集
     for val in local_ctx.values():
