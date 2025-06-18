@@ -4,6 +4,9 @@ from langchain.prompts import PromptTemplate
 from langchain.agents import AgentType
 from langchain.tools import tool
 import pandas as pd
+import matplotlib.pyplot as plt
+import io
+import base64
 from typing import Dict, Any
 from dotenv import load_dotenv
 import os
@@ -40,30 +43,62 @@ def create_agent(df: pd.DataFrame):
 
     @tool
     def plot_histogram(column_name: str) -> str:
-        """Return histogram data for a column"""
-        hist = df[column_name].dropna().hist().get_figure()
-        hist_data = hist.to_json()
-        return hist_data
+        """Return histogram plot as a base64 encoded PNG"""
+        fig = df[column_name].dropna().hist().get_figure()
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png")
+        plt.close(fig)
+        encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return encoded
 
     @tool
     def plot_scatterplot(x_column: str, y_column: str) -> str:
-        """Return scatterplot data for two columns"""
+        """Return scatterplot plot as a base64 encoded PNG"""
         fig = df.plot.scatter(x=x_column, y=y_column).get_figure()
-        plot_data = fig.to_json()
-        return plot_data
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png")
+        plt.close(fig)
+        encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return encoded
 
     tools = [
-        Tool(name="display_dataframe", func=display_dataframe, description="Display part of the dataframe"),
-        Tool(name="show_data_summary", func=show_data_summary, description="Show summary of the data"),
-        Tool(name="show_descriptive_stats", func=show_descriptive_stats, description="Show descriptive statistics"),
-        Tool(name="show_correlation_matrix", func=show_correlation_matrix, description="Compute correlation matrix"),
-        Tool(name="plot_histogram", func=plot_histogram, description="Plot histogram for a column"),
-        Tool(name="plot_scatterplot", func=plot_scatterplot, description="Plot scatterplot for two columns"),
+        Tool(
+            name="display_dataframe",
+            func=display_dataframe,
+            description="Display part of the dataframe",
+        ),
+        Tool(
+            name="show_data_summary",
+            func=show_data_summary,
+            description="Show summary of the data",
+        ),
+        Tool(
+            name="show_descriptive_stats",
+            func=show_descriptive_stats,
+            description="Show descriptive statistics",
+        ),
+        Tool(
+            name="show_correlation_matrix",
+            func=show_correlation_matrix,
+            description="Compute correlation matrix",
+        ),
+        Tool(
+            name="plot_histogram",
+            func=plot_histogram,
+            description="Plot histogram for a column",
+        ),
+        Tool(
+            name="plot_scatterplot",
+            func=plot_scatterplot,
+            description="Plot scatterplot for two columns",
+        ),
     ]
 
     prompt = PromptTemplate.from_template(
         """You are a data analysis assistant. Use the provided tools to answer the user's questions about the data."""
     )
 
-    agent = initialize_agent(tools, llm, agent=AgentType.OPENAI_FUNCTIONS, verbose=False, prompt=prompt)
+    agent = initialize_agent(
+        tools, llm, agent=AgentType.OPENAI_FUNCTIONS, verbose=False, prompt=prompt
+    )
     return agent

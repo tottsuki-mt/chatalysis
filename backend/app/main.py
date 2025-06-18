@@ -27,18 +27,26 @@ async def upload_csv(session_id: str = Form(...), file: UploadFile = File(...)):
         agents[session_id] = create_agent(df)
         return {"status": "success", "columns": df.columns.tolist()}
     except Exception as e:
-        return JSONResponse(status_code=400, content={"status": "error", "detail": str(e)})
+        return JSONResponse(
+            status_code=400, content={"status": "error", "detail": str(e)}
+        )
+
 
 @app.post("/api/chat")
 async def chat(session_id: str = Form(...), message: str = Form(...)):
     if session_id not in sessions:
-        return JSONResponse(status_code=404, content={"status": "error", "detail": "Session not found"})
+        return JSONResponse(
+            status_code=404, content={"status": "error", "detail": "Session not found"}
+        )
     try:
         agent = agents[session_id]
         reply = agent.run(message)
         return {"status": "success", "reply": reply}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+        return JSONResponse(
+            status_code=500, content={"status": "error", "detail": str(e)}
+        )
+
 
 @app.post("/api/transcribe")
 async def transcribe(file: UploadFile = File(...)):
@@ -51,8 +59,12 @@ async def transcribe(file: UploadFile = File(...)):
         text = resp.json().get("text", "").strip()
         return {"status": "success", "text": text}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+        return JSONResponse(
+            status_code=500, content={"status": "error", "detail": str(e)}
+        )
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
