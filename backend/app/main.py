@@ -16,7 +16,7 @@ agents: Dict[str, any] = {}
 
 xinference_url = os.getenv("XINFERENCE_URL", "http://localhost:9997")
 whisper_url = os.getenv("WHISPER_URL", f"{xinference_url}/v1/audio/transcriptions")
-whisper_model = os.getenv("XINFERENCE_MODEL_NAME", "whisper")
+whisper_model = os.getenv("XINFERENCE_MODEL", "whisper")
 
 
 @app.post("/api/upload")
