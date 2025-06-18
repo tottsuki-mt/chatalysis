@@ -1,14 +1,10 @@
-version: '3'
+version: '3.8'
 services:
-  backend:
-    build: ./backend
-    env_file:
-      - .env
+  app:
+    build: .
+    container_name: chatalysis
+    volumes:
+      - .:/app
     ports:
-      - "8000:8000"
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
+      - "8501:8501"
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0

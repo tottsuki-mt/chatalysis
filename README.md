@@ -1,47 +1,68 @@
-# chatalysis
+# Chat Data Analyst (Streamlit + LangChain)
 
-Chatalysis is a small demo application that lets you explore CSV data in a chat like interface. The backend is built with **FastAPI** and uses Xinference for audio transcription and an Ollama model for generating responses. The frontend is a simple **Vue 3** app served with Vite.
+## 概要
 
-## Configuration
+アップロードしたCSV/Excel/JSONデータに対し、自然言語で集計・可視化を行うデータ分析チャットアプリです。
 
-Copy `.env.sample` to `.env` and update the values to point at your running Xinference and Ollama servers:
+- Streamlit + LangChain による対話型データ分析
+- pandas/matplotlib/seaborn/plotly による可視化
+- OllamaサーバーやOpenAI APIキーに対応
+- サンプルデータ（`data/` 配下）付き
+- 音声入力対応（マイクからの音声で質問可能）
 
-```bash
-cp .env.sample .env
+## セットアップ
+
+1. Python 3.11 以上を用意してください。
+2. [uv](https://github.com/astral-sh/uv) をインストールしてください。
+3. 依存関係をインストールします。
+
+```sh
+uv sync
 ```
 
-Available variables are:
+4. Ollamaサーバーを起動してください。
+   - 例: `set OLLAMA_BASE_URL=...`
 
-- `XINFERENCE_URL` – base URL for the Xinference server
-- `XINFERENCE_MODEL` – Whisper model used for transcription
-- `OLLAMA_BASE_URL` – base URL for the Ollama server
-- `OLLAMA_MODEL` – model name used by LangChain
+## 起動方法
 
-## Local development
-
-Install dependencies with [uv](https://github.com/astral-sh/uv) and start the backend:
-
-```bash
-uv pip install -r backend/requirements.txt
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+```sh
+uv run streamlit run app.py
+```
+または
+```sh
+python main.py
 ```
 
-In a separate terminal start the frontend:
+## 使い方
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+1. Webブラウザで表示される画面からデータファイル（CSV, Excel, JSON）をアップロードします。
+2. チャット欄に日本語で質問や集計・可視化指示を入力します。
+   - 例: 「月別売上を折れ線グラフで」「平均年齢は？」など
+3. マイクボタンを押すことで音声入力も可能です（音声がテキストに変換されて入力欄に反映されます）。
+4. LLMが自動でPythonコードを生成・実行し、結果やグラフを表示します。
 
-Open `http://localhost:3000` in your browser.
+## 注意事項
 
-## Docker
+- `ALLOW_DANGEROUS_CODE=true` を設定すると、LLMが生成したPythonコードを自動実行します。安全性にご注意ください。
+- 本番利用時はサンドボックス化や自動実行の無効化を推奨します。
 
-The project can also be launched using Docker. After creating your `.env` file run:
+## 依存パッケージ
 
-```bash
-docker-compose up --build
-```
+主要な依存パッケージは `pyproject.toml` で管理しています。
+- streamlit
+- pandas
+- langchain
+- langchain-experimental
+- matplotlib
+- seaborn
+- plotly
+- python-dotenv
 
-The frontend will be available on `http://localhost:3000` and the API on `http://localhost:8000`.
+## サンプルデータ
+
+- `data/titanic.csv` など、いくつかのサンプルデータが同梱されています。
+
+## 開発・依存関係管理
+
+- 依存関係管理・インストールには [uv](https://github.com/astral-sh/uv) を推奨します。
+- 詳細は `github/copilot-instructions.md` も参照してください。

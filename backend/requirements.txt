@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-pandas
-python-multipart
-langchain
-langchain-community
-ollama
-python-dotenv
-matplotlib

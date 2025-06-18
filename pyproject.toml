@@ -1,0 +1,27 @@
+[project]
+name = "vulture-example-langchain-pandas-dataframe-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit==1.45.1",
+    "pandas==2.2.3",
+    "langchain==0.3.25",
+    "langchain-community==0.3.24",
+    "langchain-experimental==0.3.4",
+    "matplotlib==3.10.3",
+    "seaborn==0.13.2",
+    "plotly==6.1.1",    
+    "tabulate==0.9.0",
+    "streamlit-mic-recorder>=0.0.6",   # 🎙️ ボタン付きの録音コンポーネント
+    "soundfile>=0.12",                 # numpy → WAV エンコード用
+    "requests>=2.32"                   # Whisper サーバー呼び出し
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["app", "main"]
