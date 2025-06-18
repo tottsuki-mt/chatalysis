@@ -5,10 +5,17 @@ from langchain.agents import AgentType
 from langchain.tools import tool
 import pandas as pd
 from typing import Dict, Any
+from dotenv import load_dotenv
+import os
+
+
+load_dotenv()
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 
 
 def create_agent(df: pd.DataFrame):
-    llm = Ollama(model="llama3")
+    llm = Ollama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
 
     @tool
     def display_dataframe(head: int = 5) -> str:
