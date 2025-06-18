@@ -2,6 +2,9 @@
 # ---------------------------------------------------------------------------
 import io, os, traceback, logging, hashlib
 import numpy as np, pandas as pd, matplotlib.pyplot as plt
+import plotly.io as pio
+import plotly.graph_objects as go
+import plotly.express as px
 import requests, streamlit as st
 from dotenv import load_dotenv
 from streamlit_mic_recorder import mic_recorder
@@ -44,10 +47,10 @@ def whisper_transcribe(audio_bytes: bytes, mime="audio/webm", lang="ja") -> str:
 
 # -------------------------- Code-Exec Cache --------------------------------
 if "exec_cache" not in st.session_state:
-    # code_hash ➜ {"fig_bytes": [b"…", …]}
+    # code_hash ➜ {"fig_bytes": [...], "plotly_jsons": [...]} 
     st.session_state.exec_cache = {}
 
-def run_code_once(code: str, show: bool = True) -> list[bytes]:
+def run_code_once(code: str, show: bool = True) -> tuple[list[bytes], list[str]]:
     code_hash = hashlib.md5(code.encode("utf-8")).hexdigest()
     cache = st.session_state.exec_cache.get(code_hash)
 
@@ -55,16 +58,40 @@ def run_code_once(code: str, show: bool = True) -> list[bytes]:
         if show:
             for buf in cache["fig_bytes"]:
                 st.image(buf, use_column_width=True)
-        return cache["fig_bytes"]
+            for js in cache.get("plotly_jsons", []):
+                st.plotly_chart(pio.from_json(js), use_container_width=True)
+        return cache["fig_bytes"], cache.get("plotly_jsons", [])
 
-    local_ctx = {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt}
-    # plt.close("all") は以前の修正で削除済み
-    exec(code, {}, local_ctx) # LLMは plt.show() を呼ばない前提
+    local_ctx = {
+        "df": st.session_state.df,
+        "pd": pd,
+        "st": st,
+        "plt": plt,
+        "go": go,
+        "px": px,
+    }
+
+    plotly_figs: list[go.Figure] = []
+
+    def _pio_show(fig, *_, **__):
+        plotly_figs.append(fig)
+
+    orig_show = pio.show
+    pio.show = _pio_show
+    try:
+        exec(code, {}, local_ctx)  # LLMは plt.show()/fig.show() を呼ばない前提
+    finally:
+        pio.show = orig_show
+
+    # local variables から Plotly Figure を収集
+    for val in local_ctx.values():
+        if isinstance(val, go.Figure) and val not in plotly_figs:
+            plotly_figs.append(val)
 
     fig_bytes: list[bytes] = []
     for num in plt.get_fignums():
         fig = plt.figure(num)
-        
+
         # 1. PNGデータを生成 (st.pyplot(clear_figure=True) の前に)
         buf = io.BytesIO()
         fig.savefig(buf, format="png", bbox_inches="tight")
@@ -73,13 +100,22 @@ def run_code_once(code: str, show: bool = True) -> list[bytes]:
 
         # 2. Streamlitで表示 (show=True の場合)
         if show:
-            st.pyplot(fig, clear_figure=True) # ここで表示し、Figureをクリア
-        
-        # 3. MatplotlibのFigureを閉じる
-        plt.close(fig) 
+            st.pyplot(fig, clear_figure=True)  # ここで表示し、Figureをクリア
 
-    st.session_state.exec_cache[code_hash] = {"fig_bytes": fig_bytes}
-    return fig_bytes
+        # 3. MatplotlibのFigureを閉じる
+        plt.close(fig)
+
+    plotly_jsons: list[str] = []
+    for fig in plotly_figs:
+        plotly_jsons.append(pio.to_json(fig))
+        if show:
+            st.plotly_chart(fig, use_container_width=True)
+
+    st.session_state.exec_cache[code_hash] = {
+        "fig_bytes": fig_bytes,
+        "plotly_jsons": plotly_jsons,
+    }
+    return fig_bytes, plotly_jsons
 
 # ------------------------------- UI ----------------------------------------
 st.set_page_config(page_title="Chat Data Analyst", layout="wide")
@@ -125,9 +161,11 @@ chat_box = st.container()
 for msg in st.session_state.get("messages", []):
     with chat_box.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        # 旧グラフは保存済み PNG をそのまま表示
+        # 旧グラフは保存済み PNG / Plotly JSON を再描画
         for buf in msg.get("fig_bytes", []):
             st.image(buf, use_column_width=True)
+        for js in msg.get("plotly_jsons", []):
+            st.plotly_chart(pio.from_json(js), use_container_width=True)
 
 # --------------------------- 入力 UI ---------------------------------------
 if st.session_state.get("agent"):
@@ -187,12 +225,14 @@ if st.session_state.get("agent"):
                 st.markdown(resp)
 
                 # ---------- コードブロック実行 ----------
-                code_blocks, fig_bytes_all = [], []
+                code_blocks, fig_bytes_all, plotly_jsons_all = [], [], []
                 if "```python" in resp and ALLOW_DANGER:
                     for block in resp.split("```python")[1:]:
                         code = block.split("```", 1)[0]
                         code_blocks.append(code)
-                        fig_bytes_all.extend(run_code_once(code))  # PNG を取得
+                        imgs, js = run_code_once(code)
+                        fig_bytes_all.extend(imgs)
+                        plotly_jsons_all.extend(js)
 
         # ---------- メッセージ履歴へ保存 ----------
         st.session_state.messages.append(
@@ -201,6 +241,7 @@ if st.session_state.get("agent"):
                 "content": resp,
                 "code_blocks": code_blocks,
                 "fig_bytes": fig_bytes_all,
+                "plotly_jsons": plotly_jsons_all,
             }
         )
 else:
