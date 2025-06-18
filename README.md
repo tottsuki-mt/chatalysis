@@ -13,8 +13,7 @@ cp .env.sample .env
 Available variables are:
 
 - `XINFERENCE_URL` – base URL for the Xinference server
-- `XINFERENCE_MODEL_NAME` – name of the Whisper model to launch
-- `XINFERENCE_MODEL_SIZE` – size of the Whisper model
+- `XINFERENCE_MODEL` – Whisper model used for transcription
 - `OLLAMA_BASE_URL` – base URL for the Ollama server
 - `OLLAMA_MODEL` – model name used by LangChain
 
