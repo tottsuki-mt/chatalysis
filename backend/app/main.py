@@ -3,9 +3,8 @@ from fastapi.responses import JSONResponse
 import pandas as pd
 from typing import Dict
 from .agent import create_agent
-from xinference import Client
 from dotenv import load_dotenv
-import tempfile
+import requests
 import os
 
 
@@ -16,23 +15,9 @@ sessions: Dict[str, pd.DataFrame] = {}
 agents: Dict[str, any] = {}
 
 xinference_url = os.getenv("XINFERENCE_URL", "http://localhost:9997")
-xinference_client = Client(xinference_url)
-model_name = os.getenv("XINFERENCE_MODEL_NAME", "whisper")
-model_size = os.getenv("XINFERENCE_MODEL_SIZE", "small")
-model_uid = None
+whisper_url = os.getenv("WHISPER_URL", f"{xinference_url}/v1/audio/transcriptions")
+whisper_model = os.getenv("XINFERENCE_MODEL_NAME", "whisper")
 
-@app.on_event("startup")
-async def startup_event():
-    global model_uid
-    try:
-        model_uid = xinference_client.launch_model(model_name=model_name, model_size=model_size)
-    except Exception:
-        # assume already launched
-        models = xinference_client.list_models()
-        for uid, info in models.items():
-            if info.get("model_name") == model_name:
-                model_uid = uid
-                break
 
 @app.post("/api/upload")
 async def upload_csv(session_id: str = Form(...), file: UploadFile = File(...)):
@@ -57,15 +42,13 @@ async def chat(session_id: str = Form(...), message: str = Form(...)):
 
 @app.post("/api/transcribe")
 async def transcribe(file: UploadFile = File(...)):
-    if model_uid is None:
-        return JSONResponse(status_code=500, content={"status": "error", "detail": "Model not ready"})
     try:
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            content = await file.read()
-            tmp.write(content)
-            tmp.flush()
-            resp = xinference_client.chat(model_uid, input=tmp.name)
-        text = resp["text"] if isinstance(resp, dict) else resp
+        content = await file.read()
+        files = {"file": (file.filename, content, file.content_type)}
+        data = {"model": whisper_model}
+        resp = requests.post(whisper_url, files=files, data=data, timeout=90)
+        resp.raise_for_status()
+        text = resp.json().get("text", "").strip()
         return {"status": "success", "text": text}
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
