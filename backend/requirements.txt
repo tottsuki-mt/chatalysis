@@ -5,5 +5,4 @@ python-multipart
 langchain
 langchain-community
 ollama
-xinference-client
 python-dotenv
