@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pandas
+python-multipart
+langchain
+langchain-community
+ollama
+xinference-client
