@@ -1,6 +1,6 @@
 # app.py – Chat & Audio input (Enter 送信 + 入力欄クリア対応版)
-# ---------------------------------------------------------------------------
-import io, os, traceback, logging, hashlib
+# -----------------------------------------------------------------------------
+import io, os, traceback, logging
 import numpy as np, pandas as pd, matplotlib.pyplot as plt
 import requests, streamlit as st
 from dotenv import load_dotenv
@@ -10,15 +10,15 @@ from langchain.llms import Ollama
 
 try:
     from llm_logger import logger
-except ImportError:
+except ImportError:                              # ロガーが無くても動くように
     logger = logging.getLogger(__name__)
 
-# ------------------------------ ENV ----------------------------------------
+# ------------------------------ ENV ------------------------------------------
 load_dotenv()
 ALLOW_DANGER = os.getenv("ALLOW_DANGEROUS_CODE", "false").lower() == "true"
 WHISPER_URL  = os.getenv("WHISPER_URL", "http://localhost:8000/v1/audio/transcriptions")
 
-# --------------------------- LLM / Whisper ---------------------------------
+# --------------------------- LLM / Whisper -----------------------------------
 @st.cache_resource(show_spinner="LLM をロード中…")
 def load_llm():
     return Ollama(
@@ -38,50 +38,17 @@ def whisper_transcribe(audio_bytes: bytes, mime="audio/webm", lang="ja") -> str:
         st.error(f"Whisper API エラー: {e}")
         return ""
 
-# ------------------------- Matplotlib → Streamlit --------------------------
-# def _streamlit_show(...):  <-- この関数を削除
-# plt.show = _streamlit_show  <-- この行を削除
+# ------------------------- Matplotlib → Streamlit ----------------------------
+def _streamlit_show(*_, **__):
+    fig = plt.gcf()  # 現在のフィギュアを取得
+    # フィギュアに何か描画されているか確認 (軸が存在するかどうか)
+    if fig.axes:
+        st.pyplot(fig, clear_figure=False) # Streamlitで表示
+    plt.close(fig)   # 表示後、Matplotlib側でフィギュアを閉じる (プロット内容の有無に関わらず)
 
-# -------------------------- Code-Exec Cache --------------------------------
-if "exec_cache" not in st.session_state:
-    # code_hash ➜ {"fig_bytes": [b"…", …]}
-    st.session_state.exec_cache = {}
+plt.show = _streamlit_show      # plt.show() を上書き
 
-def run_code_once(code: str, show: bool = True) -> list[bytes]:
-    code_hash = hashlib.md5(code.encode("utf-8")).hexdigest()
-    cache = st.session_state.exec_cache.get(code_hash)
-
-    if cache:
-        if show:
-            for buf in cache["fig_bytes"]:
-                st.image(buf, use_column_width=True)
-        return cache["fig_bytes"]
-
-    local_ctx = {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt}
-    # plt.close("all") は以前の修正で削除済み
-    exec(code, {}, local_ctx) # LLMは plt.show() を呼ばない前提
-
-    fig_bytes: list[bytes] = []
-    for num in plt.get_fignums():
-        fig = plt.figure(num)
-        
-        # 1. PNGデータを生成 (st.pyplot(clear_figure=True) の前に)
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight")
-        buf.seek(0)
-        fig_bytes.append(buf.getvalue())
-
-        # 2. Streamlitで表示 (show=True の場合)
-        if show:
-            st.pyplot(fig, clear_figure=True) # ここで表示し、Figureをクリア
-        
-        # 3. MatplotlibのFigureを閉じる
-        plt.close(fig) 
-
-    st.session_state.exec_cache[code_hash] = {"fig_bytes": fig_bytes}
-    return fig_bytes
-
-# ------------------------------- UI ----------------------------------------
+# ------------------------------- UI ------------------------------------------
 st.set_page_config(page_title="Chat Data Analyst", layout="wide")
 st.title("📊 Chat Data Analyst (demo)")
 
@@ -90,16 +57,16 @@ uploaded = st.sidebar.file_uploader("🔼 データをアップロード", ["csv
 if "df" not in st.session_state:
     st.session_state.df = None
 if uploaded:
-    if uploaded.type.endswith("spreadsheetml.sheet"): # .xlsx
+    if uploaded.type.endswith("spreadsheetml.sheet"):
         st.session_state.df = pd.read_excel(uploaded)
-    elif uploaded.type.endswith("json"): # .json
+    elif uploaded.type.endswith("json"):
         st.session_state.df = pd.read_json(uploaded)
-    else: # .csv
+    else:
         st.session_state.df = pd.read_csv(uploaded)
     st.success(f"{len(st.session_state.df):,} 行 × {len(st.session_state.df.columns)} 列 を読み込みました。")
     st.dataframe(st.session_state.df.head(), height=250)
 
-# -------------------------- Pandas-Agent -----------------------------------
+# -------------------------- Pandas-Agent -------------------------------------
 if "agent" not in st.session_state and st.session_state.df is not None:
     with st.spinner("エージェント初期化中…"):
         st.session_state.agent = create_pandas_dataframe_agent(
@@ -109,7 +76,6 @@ if "agent" not in st.session_state and st.session_state.df is not None:
                 "あなたは優秀なデータサイエンティストです。"
                 "Python (pandas / matplotlib / seaborn / plotly) で回答し、"
                 "コードは ```python``` で囲んでください。"
-                "グラフを生成する際は plt.show() を呼び出さないでください。" # <--- 指示を追加
             ),
             verbose=True,
             allow_dangerous_code=ALLOW_DANGER,
@@ -117,7 +83,7 @@ if "agent" not in st.session_state and st.session_state.df is not None:
         st.session_state.messages = []
         st.session_state.draft    = ""
 
-# --------------------------- Chat Loop -------------------------------------
+# --------------------------- Chat Loop ---------------------------------------
 st.divider()
 chat_box = st.container()
 
@@ -125,11 +91,24 @@ chat_box = st.container()
 for msg in st.session_state.get("messages", []):
     with chat_box.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        # 旧グラフは保存済み PNG をそのまま表示
-        for buf in msg.get("fig_bytes", []):
-            st.image(buf, use_column_width=True)
+        if msg["role"] == "assistant" and msg.get("code_blocks"):
+            for code in msg["code_blocks"]:
+                try:
+                    plt.close('all') # ★★★ 既存メッセージのプロット再描画前にMatplotlibの状態をリセット ★★★
+                    exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt})
+                    # exec内でplt.show()が呼ばれれば_streamlit_showで処理される
 
-# --------------------------- 入力 UI ---------------------------------------
+                    # exec内でplt.show()が呼ばれなかった図を処理するフォールバック
+                    for fig_num in plt.get_fignums():
+                        fig = plt.figure(fig_num)
+                        if fig.axes: # 軸があれば表示
+                             st.pyplot(fig, clear_figure=False)
+                        plt.close(fig) # 表示後に閉じる
+                except Exception as e:
+                    st.error(f"再実行失敗: {e}")
+                    traceback.print_exc() # エラーの詳細を出力
+
+# --------------------------- 入力 UI -----------------------------------------
 if st.session_state.get("agent"):
 
     col_txt, col_mic, col_send = st.columns([9, 1, 1])
@@ -187,21 +166,30 @@ if st.session_state.get("agent"):
                 st.markdown(resp)
 
                 # ---------- コードブロック実行 ----------
-                code_blocks, fig_bytes_all = [], []
+                code_blocks = []
                 if "```python" in resp and ALLOW_DANGER:
                     for block in resp.split("```python")[1:]:
                         code = block.split("```", 1)[0]
                         code_blocks.append(code)
-                        fig_bytes_all.extend(run_code_once(code))  # PNG を取得
+                        try:
+                            plt.close('all') # ★★★ 新しいプロット生成前にMatplotlibの状態をリセット ★★★
+                            exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt})
+                            # exec内でplt.show()が呼ばれれば_streamlit_showで処理される
+
+                            # exec内でplt.show()が呼ばれなかった図を処理するフォールバック
+                            for fig_num in plt.get_fignums():
+                                fig = plt.figure(fig_num)
+                                if fig.axes: # 軸があれば表示
+                                    st.pyplot(fig, clear_figure=False)
+                                plt.close(fig) # 表示後に閉じる
+                        except Exception as e:
+                            st.error(f"コード実行失敗: {e}")
+                            traceback.print_exc() # エラーの詳細を出力
+
 
         # ---------- メッセージ履歴へ保存 ----------
         st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": resp,
-                "code_blocks": code_blocks,
-                "fig_bytes": fig_bytes_all,
-            }
+            {"role": "assistant", "content": resp, "code_blocks": code_blocks}
         )
 else:
     st.info("まずはデータファイルをアップロードしてください。")
