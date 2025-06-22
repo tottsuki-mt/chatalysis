@@ -1,8 +1,16 @@
 # app.py – Chat & Audio input (Enter 送信 + 入力欄クリア対応版)
 # -----------------------------------------------------------------------------
-import io, os, traceback, logging
-import numpy as np, pandas as pd, matplotlib.pyplot as plt
-import requests, streamlit as st
+import io
+import logging
+import os
+import traceback
+from typing import List
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import requests
+import streamlit as st
 from dotenv import load_dotenv
 from streamlit_mic_recorder import mic_recorder
 from langchain_experimental.agents import create_pandas_dataframe_agent
@@ -37,6 +45,27 @@ def whisper_transcribe(audio_bytes: bytes, mime="audio/webm", lang="ja") -> str:
     except Exception as e:
         st.error(f"Whisper API エラー: {e}")
         return ""
+
+# ----------------------------- Utility ---------------------------------------
+def _execute_code(code: str) -> None:
+    """Execute Python code safely and render matplotlib figures."""
+    plt.close("all")
+    exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt})
+    for fig_num in plt.get_fignums():
+        fig = plt.figure(fig_num)
+        if fig.axes:
+            st.pyplot(fig, clear_figure=False)
+        plt.close(fig)
+
+
+def _extract_python_blocks(text: str) -> List[str]:
+    """Return Python code blocks contained in markdown text."""
+    if "```python" not in text:
+        return []
+    blocks: List[str] = []
+    for block in text.split("```python")[1:]:
+        blocks.append(block.split("```", 1)[0])
+    return blocks
 
 # ------------------------- Matplotlib → Streamlit ----------------------------
 def _streamlit_show(*_, **__):
@@ -94,19 +123,10 @@ for msg in st.session_state.get("messages", []):
         if msg["role"] == "assistant" and msg.get("code_blocks"):
             for code in msg["code_blocks"]:
                 try:
-                    plt.close('all') # ★★★ 既存メッセージのプロット再描画前にMatplotlibの状態をリセット ★★★
-                    exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt})
-                    # exec内でplt.show()が呼ばれれば_streamlit_showで処理される
-
-                    # exec内でplt.show()が呼ばれなかった図を処理するフォールバック
-                    for fig_num in plt.get_fignums():
-                        fig = plt.figure(fig_num)
-                        if fig.axes: # 軸があれば表示
-                             st.pyplot(fig, clear_figure=False)
-                        plt.close(fig) # 表示後に閉じる
+                    _execute_code(code)
                 except Exception as e:
                     st.error(f"再実行失敗: {e}")
-                    traceback.print_exc() # エラーの詳細を出力
+                    traceback.print_exc()  # エラーの詳細を出力
 
 # --------------------------- 入力 UI -----------------------------------------
 if st.session_state.get("agent"):
@@ -166,25 +186,14 @@ if st.session_state.get("agent"):
                 st.markdown(resp)
 
                 # ---------- コードブロック実行 ----------
-                code_blocks = []
-                if "```python" in resp and ALLOW_DANGER:
-                    for block in resp.split("```python")[1:]:
-                        code = block.split("```", 1)[0]
-                        code_blocks.append(code)
+                code_blocks = _extract_python_blocks(resp)
+                if ALLOW_DANGER:
+                    for code in code_blocks:
                         try:
-                            plt.close('all') # ★★★ 新しいプロット生成前にMatplotlibの状態をリセット ★★★
-                            exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt})
-                            # exec内でplt.show()が呼ばれれば_streamlit_showで処理される
-
-                            # exec内でplt.show()が呼ばれなかった図を処理するフォールバック
-                            for fig_num in plt.get_fignums():
-                                fig = plt.figure(fig_num)
-                                if fig.axes: # 軸があれば表示
-                                    st.pyplot(fig, clear_figure=False)
-                                plt.close(fig) # 表示後に閉じる
+                            _execute_code(code)
                         except Exception as e:
                             st.error(f"コード実行失敗: {e}")
-                            traceback.print_exc() # エラーの詳細を出力
+                            traceback.print_exc()  # エラーの詳細を出力
 
 
         # ---------- メッセージ履歴へ保存 ----------
