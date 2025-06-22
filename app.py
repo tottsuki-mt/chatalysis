@@ -1,12 +1,16 @@
 # app.py – Chat & Audio input (Enter 送信 + 入力欄クリア対応版)
 # ---------------------------------------------------------------------------
-import io, os, traceback, logging, hashlib
-import numpy as np, pandas as pd, matplotlib.pyplot as plt
-import requests, streamlit as st
+import os
+import traceback
+import logging
+import hashlib
+import pandas as pd
+import streamlit as st
 from dotenv import load_dotenv
 from streamlit_mic_recorder import mic_recorder
 from langchain_experimental.agents import create_pandas_dataframe_agent
-from langchain.llms import Ollama
+from llm_utils import load_llm, whisper_transcribe
+from exec_cache import run_code_once
 
 try:
     from llm_logger import logger
@@ -16,70 +20,6 @@ except ImportError:
 # ------------------------------ ENV ----------------------------------------
 load_dotenv()
 ALLOW_DANGER = os.getenv("ALLOW_DANGEROUS_CODE", "false").lower() == "true"
-WHISPER_URL  = os.getenv("WHISPER_URL", "http://localhost:8000/v1/audio/transcriptions")
-
-# --------------------------- LLM / Whisper ---------------------------------
-@st.cache_resource(show_spinner="LLM をロード中…")
-def load_llm():
-    return Ollama(
-        model=os.getenv("OLLAMA_MODEL", "qwen3:14b"),
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        temperature=0.7, top_p=0.95, top_k=20,
-    )
-
-def whisper_transcribe(audio_bytes: bytes, mime="audio/webm", lang="ja") -> str:
-    files = {"file": ("audio.webm", audio_bytes, mime)}
-    data  = {"model": os.getenv("WHISPER_MODEL", "whisper-1"), "language": lang}
-    try:
-        r = requests.post(WHISPER_URL, files=files, data=data, timeout=90)
-        r.raise_for_status()
-        return r.json().get("text", "").strip()
-    except Exception as e:
-        st.error(f"Whisper API エラー: {e}")
-        return ""
-
-# ------------------------- Matplotlib → Streamlit --------------------------
-# def _streamlit_show(...):  <-- この関数を削除
-# plt.show = _streamlit_show  <-- この行を削除
-
-# -------------------------- Code-Exec Cache --------------------------------
-if "exec_cache" not in st.session_state:
-    # code_hash ➜ {"fig_bytes": [b"…", …]}
-    st.session_state.exec_cache = {}
-
-def run_code_once(code: str, show: bool = True) -> list[bytes]:
-    code_hash = hashlib.md5(code.encode("utf-8")).hexdigest()
-    cache = st.session_state.exec_cache.get(code_hash)
-
-    if cache:
-        if show:
-            for buf in cache["fig_bytes"]:
-                st.image(buf, use_column_width=True)
-        return cache["fig_bytes"]
-
-    local_ctx = {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt}
-    # plt.close("all") は以前の修正で削除済み
-    exec(code, {}, local_ctx) # LLMは plt.show() を呼ばない前提
-
-    fig_bytes: list[bytes] = []
-    for num in plt.get_fignums():
-        fig = plt.figure(num)
-        
-        # 1. PNGデータを生成 (st.pyplot(clear_figure=True) の前に)
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight")
-        buf.seek(0)
-        fig_bytes.append(buf.getvalue())
-
-        # 2. Streamlitで表示 (show=True の場合)
-        if show:
-            st.pyplot(fig, clear_figure=True) # ここで表示し、Figureをクリア
-        
-        # 3. MatplotlibのFigureを閉じる
-        plt.close(fig) 
-
-    st.session_state.exec_cache[code_hash] = {"fig_bytes": fig_bytes}
-    return fig_bytes
 
 # ------------------------------- UI ----------------------------------------
 st.set_page_config(page_title="Chat Data Analyst", layout="wide")

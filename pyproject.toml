@@ -24,4 +24,4 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["app", "main"]
+py-modules = ["app", "main", "llm_utils", "exec_cache"]
