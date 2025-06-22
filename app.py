@@ -49,7 +49,6 @@ def whisper_transcribe(audio_bytes: bytes, mime="audio/webm", lang="ja") -> str:
 # ----------------------------- Utility ---------------------------------------
 def _execute_code(code: str) -> None:
     """Execute Python code safely and render matplotlib figures."""
-    plt.close("all")
     exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt})
     for fig_num in plt.get_fignums():
         fig = plt.figure(fig_num)
