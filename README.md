@@ -66,3 +66,12 @@ python main.py
 
 - 依存関係管理・インストールには [uv](https://github.com/astral-sh/uv) を推奨します。
 - 詳細は `github/copilot-instructions.md` も参照してください。
+
+## テスト
+
+現時点では自動テストは含まれていません。テストを追加した場合は次のコマンドで実行
+します。
+
+```sh
+pytest
+```
