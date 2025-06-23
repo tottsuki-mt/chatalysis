@@ -5,12 +5,14 @@ import logging
 import os
 import re
 import traceback
+import time
 from typing import List
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import japanize_matplotlib
+
 japanize_matplotlib.japanize()
 import requests
 import streamlit as st
@@ -189,6 +191,7 @@ if st.session_state.get("agent"):
 
     # -------------- LLM 呼び出し -----------------
     if q:
+        start_ts = time.perf_counter()
         st.session_state.messages.append({"role": "user", "content": q})
         with chat_box.chat_message("user"):
             st.markdown(q)
@@ -214,10 +217,17 @@ if st.session_state.get("agent"):
                         except Exception as e:
                             st.error(f"コード実行失敗: {e}")
                             traceback.print_exc()  # エラーの詳細を出力
+            elapsed = time.perf_counter() - start_ts
+            st.caption(f"⏱ 実行時間: {elapsed:.2f} 秒")
 
         # ---------- メッセージ履歴へ保存 ----------
         st.session_state.messages.append(
-            {"role": "assistant", "content": resp, "code_blocks": code_blocks}
+            {
+                "role": "assistant",
+                "content": resp,
+                "code_blocks": code_blocks,
+                "elapsed": elapsed,
+            }
         )
 else:
     st.info("まずはデータファイルをアップロードしてください。")
