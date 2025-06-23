@@ -3,12 +3,15 @@
 import io
 import logging
 import os
+import re
 import traceback
 from typing import List
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import japanize_matplotlib
+japanize_matplotlib.japanize()
 import requests
 import streamlit as st
 from dotenv import load_dotenv
