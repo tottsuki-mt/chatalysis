@@ -12,14 +12,16 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import japanize_matplotlib
-
 japanize_matplotlib.japanize()
+import seaborn as sns
+import plotly.express as px
 import requests
 import streamlit as st
 from dotenv import load_dotenv
 from streamlit_mic_recorder import mic_recorder
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain_ollama import OllamaLLM
+import numpy as np
 
 try:
     from llm_logger import logger
@@ -60,7 +62,8 @@ def whisper_transcribe(audio_bytes: bytes, mime="audio/webm", lang="ja") -> str:
 # ----------------------------- Utility ---------------------------------------
 def _execute_code(code: str) -> None:
     """Execute Python code safely and render matplotlib figures."""
-    exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, "plt": plt})
+    exec(code, {}, {"df": st.session_state.df, "pd": pd, "st": st, 
+                    "plt": plt, "sns": sns, "px": px, "np": np})
     for fig_num in plt.get_fignums():
         fig = plt.figure(fig_num)
         if fig.axes:
@@ -127,7 +130,11 @@ if "agent" not in st.session_state and st.session_state.df is not None:
                 "Python (pandas / matplotlib / seaborn / plotly) で回答し、"
                 "コードは ```python``` で囲んでください。"
                 "データフレームは `df` という変数名で利用可能です。"
-                "プロットは `plt` を使って描画してください。"
+                "プロットは `plt` という変数名で利用可能です。"
+                "Pandasは `pd` という変数名で利用可能です。"
+                "plotly.express は `px` という変数名で利用可能です。"
+                "seaborn は `sns` という変数名で利用可能です。"
+                "numpy は `np` という変数名で利用可能です。"
             ),
             # include_df_in_prompt=False,
             verbose=True,
