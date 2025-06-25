@@ -19,7 +19,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from streamlit_mic_recorder import mic_recorder
 from langchain_experimental.agents import create_pandas_dataframe_agent
-from langchain.llms import Ollama
+from langchain_ollama import OllamaLLM
 
 try:
     from llm_logger import logger
@@ -35,14 +35,15 @@ WHISPER_URL = os.getenv("WHISPER_URL", "http://localhost:8000/v1/audio/transcrip
 # --------------------------- LLM / Whisper -----------------------------------
 @st.cache_resource(show_spinner="LLM をロード中…")
 def load_llm():
-    return Ollama(
+    return OllamaLLM(
         model=os.getenv("OLLAMA_MODEL", "qwen3:14b"),
         base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         temperature=0.7,
         top_p=0.95,
         top_k=20,
+        # num_ctx=16384,
+        # num_predict=512
     )
-
 
 def whisper_transcribe(audio_bytes: bytes, mime="audio/webm", lang="ja") -> str:
     files = {"file": ("audio.webm", audio_bytes, mime)}
@@ -125,11 +126,16 @@ if "agent" not in st.session_state and st.session_state.df is not None:
                 "あなたは優秀なデータサイエンティストです。"
                 "Python (pandas / matplotlib / seaborn / plotly) で回答し、"
                 "コードは ```python``` で囲んでください。"
+                "データフレームは `df` という変数名で利用可能です。"
+                "プロットは `plt` を使って描画してください。"
             ),
+            # include_df_in_prompt=False,
             verbose=True,
             allow_dangerous_code=ALLOW_DANGER,
+            # agent_executor_kwargs={"handle_parsing_errors": True},
         )
-        st.session_state.messages = []
+        # st.session_state.messages = []
+        st.session_state.setdefault("messages", [])
         st.session_state.draft = ""
 
 # --------------------------- Chat Loop ---------------------------------------
