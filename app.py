@@ -212,7 +212,11 @@ if st.session_state.get("agent"):
         with chat_box.chat_message("assistant"):
             with st.spinner("考え中…"):
                 try:
+                    # no_think mode
+                    q = f"{q}\n /no_think"
+
                     logger.info(f"[LLM INPUT] {q}")
+
                     resp = st.session_state.agent.invoke({"input": q})["output"]
                     resp = _strip_think_tags(resp)
                     logger.info(f"[LLM OUTPUT] {resp}")
